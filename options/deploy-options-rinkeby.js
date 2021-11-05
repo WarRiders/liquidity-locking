@@ -10,16 +10,16 @@ module.exports = {
     bznSource: "0x877181bd082C53457e40847e243a40A61d61B954",
     recipient: "0x4EeABa74D7f51fe3202D7963EFf61D2e7e166cBa",
     staking: {
-      duration: 86400,
+      duration: 172800,
       isLinear: true,
       totalRewardAmount: "100000000000000000000",
     },
-    dueDate: 1634945648,
+    dueDate: 1636321527,
   },
   schedule: {
     isValid: true,
     cliffDuration: 1,
-    duration: 1,
+    duration: 2,
     interval: 1,
   },
 };

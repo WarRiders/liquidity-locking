@@ -1,3 +1,16 @@
+# Liquidity Lock
+
+Contracts on Rinkeby
+
+```
+LiquidityLock: 0x02E35C88711DAfaee6163D751Be72a5385BB3647
+
+AdvisorPool: 0x877181bd082C53457e40847e243a40A61d61B954
+TeamPool: 0x1755c20fEA1C72B015Aa87432D77eb6d9F5d603C
+GamePool (BZN Faucet): 0xa4b7719066b5FC8763091de7436408a274B04b11
+BZN: 0x8F54971B2e385FF8136aE7EbA5224274fB0ef9C5
+```
+
 # Advanced Sample Hardhat Project
 
 This project demonstrates an advanced Hardhat use case, integrating other tools commonly used alongside Hardhat in the ecosystem.
