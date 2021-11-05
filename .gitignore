@@ -1,3 +1,7 @@
+coverage.json
+cache/
+artifacts/
+
 # Logs
 logs
 *.log
