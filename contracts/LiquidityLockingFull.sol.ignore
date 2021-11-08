@@ -599,7 +599,14 @@ contract LiquidityLock is Ownable {
     * not earn staking rewards
     */
     function execute() external onlyOwner isActive {
-        if (block.timestamp > config.dueDate) {
+        require(!disabled, "This contract has been disabled");
+        
+        uint256 currentBalance = totalAmountDeposited;
+        uint256 bznAmount = currentBalance * config.bznRatio;
+
+        require(currentBalance > 0, "No deposits");
+
+        if (block.timestamp > config.dueDate && bznAmount < config.bznSoftLimit) {
             refund("Due date passed");
             return;
         }
@@ -613,11 +620,8 @@ contract LiquidityLock is Ownable {
         uint256 realCurrentBalance = address(this).balance;
         require(realCurrentBalance >= totalAmountDeposited, "Recorded amount deposited is less than actual balance");
 
-        uint256 currentBalance = totalAmountDeposited;
         uint256 weiTotal = currentBalance / 2;
         uint256 recipientAmount = currentBalance - weiTotal;
-
-        uint256 bznAmount = currentBalance * config.bznRatio;
 
         require(bznAmount >= config.bznSoftLimit, "BZN Amount must be at least the soft limit");
         require(bznAmount < config.bznHardLimit, "BZN Amount exceeds the hard limit");
@@ -674,7 +678,7 @@ contract LiquidityLock is Ownable {
         uint256 currentBalance = totalAmountDeposited;
         uint256 bznAmount = currentBalance * config.bznRatio;
 
-        return block.timestamp > config.dueDate && bznAmount < config.bznSoftLimit;
+        return disabled || (block.timestamp > config.dueDate && bznAmount < config.bznSoftLimit);
     }
 
     /**
@@ -684,24 +688,14 @@ contract LiquidityLock is Ownable {
     * @param reason A reason for the refund to record on-chain
     */
     function refund(string memory reason) public onlyOwner isActive {
+        require(!disabled, "Refund already called");
+
         disabled = true;
 
         IAdvisorPool pool = IAdvisorPool(config.bznSource);
-        pool.transferOwnership(config.recipient);
-
-        emit Disabled(reason);
-    }
-
-    /**
-    * @dev A backup function to refund in-case refund can't execute because of out-of-gas errors
-    * @param reason The reason the contract was shutdown to record on-chain
-    */
-    function emergencyShutdown(string memory reason) external onlyOwner isActive {
-        disabled = true;
-        refundWithdrawalRequired = true;
-
-        IAdvisorPool pool = IAdvisorPool(config.bznSource);
-        pool.transferOwnership(config.recipient);
+        if (pool.owner() == address(this)) {
+            pool.transferOwnership(config.recipient);
+        }
 
         emit Disabled(reason);
     }
@@ -713,9 +707,11 @@ contract LiquidityLock is Ownable {
     */
     function refundWithdrawal(address payable user) external {
         require(disabled, "Contract has not been disabled");
-        require(refundWithdrawalRequired, "Refund withdrawals are not required");
+        require(amounts[user] > 0, "Nothing to withdraw");
 
         uint256 userAmount = amounts[user];
+
+        amounts[user] = 0;
 
         user.transfer(userAmount);
     }

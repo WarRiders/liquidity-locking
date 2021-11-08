@@ -19,7 +19,7 @@ module.exports = {
   schedule: {
     isValid: true,
     cliffDuration: 1,
-    duration: 2,
+    duration: 3,
     interval: 1,
   },
 };

@@ -1,3 +1,3 @@
-const options = require("./deploy-options");
+const options = require("../options/deploy-options-rinkeby");
 
 module.exports = [options];

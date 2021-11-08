@@ -17,6 +17,7 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
   }
 });
 
+const forkBlockNumber = process.env.FORK_BLOCK_NUMBER;
 const shouldFork =
   process.env.SHOULD_FORK.toLowerCase() === "true" ||
   process.env.SHOULD_FORK.toLowerCase() === "yes";
@@ -24,7 +25,8 @@ const shouldFork =
 const hardhatNetwork = shouldFork
   ? {
       forking: {
-        url: "https://eth-mainnet.alchemyapi.io/v2/irJP35twUTUUNxjP-_4q_ExlMSSnqQrA",
+        url: process.env.FORK_URL,
+        blockNumber: forkBlockNumber,
       },
     }
   : {};
@@ -40,6 +42,12 @@ module.exports = {
     compilers: [
       {
         version: "0.8.4",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
       },
       {
         version: "0.4.24",

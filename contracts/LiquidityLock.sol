@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "./ETHFeed.sol";
 import "./LiquidityLockConfig.sol";
 import "./IUniswapV2Router02.sol";
 import "./IUniswapV2Factory.sol";
@@ -31,9 +30,6 @@ contract LiquidityLock is Ownable {
     // Emitted when a user deposits Eth
     event Deposit(address indexed user, uint256 amount);
 
-    // Emitted when a user deposits Eth
-    event Withdraw(address indexed user, uint256 amount);
-
     // Emitted when a user redeems either the LP Token or the Extra BZN
     event RedeemedToken(address indexed user, address indexed token, uint256 amount);
 
@@ -49,17 +45,15 @@ contract LiquidityLock is Ownable {
     LiquidityLockData public config;
     
     bool public disabled;
-    bool public refundWithdrawalRequired;
 
     uint256 public totalRewardsClaimed;
+
+    uint256 public refundingEthAmount;
 
     //total amount
     uint256 public totalAmountDeposited;
     // deposit data
     mapping(address => uint256) public amounts;
-    // All users who have deposited
-    address[] public depositors;
-    mapping(address => uint256) internal depositorIndexed;
 
     // locking data
     struct UserLockingData {
@@ -87,9 +81,6 @@ contract LiquidityLock is Ownable {
     mapping(address => tokenGrant) public _bznTokenGrants;
 
     IERC20 lpToken;
-
-    // staking data
-    IERC20 internal immutable _rewardToken;
     // staking schedule data
     stakingSchedule public _tokenStakingSchedule;
 
@@ -109,8 +100,6 @@ contract LiquidityLock is Ownable {
         _tokenStakingSchedule = stakingSchedule(false, 0, 0, 0, 0);
 
         config = _config.data;
-
-        _rewardToken = IERC20(config.bznAddress);
     }
 
     modifier isActive {
@@ -149,10 +138,6 @@ contract LiquidityLock is Ownable {
         uint256 bznAmount = currentBalance * config.bznRatio;
         require(bznAmount <= config.bznHardLimit, "BZN Amount will exceed the hard limit");
 
-        if (amounts[msg.sender] == 0) {
-            depositors.push(msg.sender);
-        }
-
         amounts[msg.sender] += msg.value;
         totalAmountDeposited += msg.value;
 
@@ -160,7 +145,7 @@ contract LiquidityLock is Ownable {
     }
 
     // calculate price based on pair reserves
-    function getTokenPrice(address pairAddress, uint amount) public view returns(uint)
+    function getTokenPrice(address pairAddress, uint amount) public view returns(uint, uint)
     {
         IUniswapV2Pair pair = IUniswapV2Pair(pairAddress);
         IERC20Metadata token1 = IERC20Metadata(pair.token1());
@@ -172,7 +157,8 @@ contract LiquidityLock is Ownable {
 
         // decimals
         uint res0 = Res0*(10**token1.decimals());
-        return((amount*res0)/Res1) / (10**token2.decimals()); // return amount of token0 needed to buy token1
+        uint res1 = Res1*(10**token2.decimals());
+        return (((amount*res0)/Res1) / (10**token2.decimals()), ((amount*res1)/Res0) / (10**token1.decimals())); // return amount of token0 needed to buy token1
     }
 
     /**
@@ -235,7 +221,18 @@ contract LiquidityLock is Ownable {
 
             //Now we to figure out how much BZN[wei] we are putting up per ETH[wei]
             uint256 amountETHDesired = weiTotal;
-            uint256 amountTokenDesired = getTokenPrice(address(lpToken), amountETHDesired);
+            uint256 amountTokenDesired;
+            (amountTokenDesired, ) = getTokenPrice(address(lpToken), amountETHDesired);
+            if (amountTokenDesired > bznAmount) {
+                //Not enough BZN allocation, swap match
+                amountTokenDesired = bznAmount;
+                (,amountETHDesired) = getTokenPrice(address(lpToken), bznAmount);
+
+                require(amountETHDesired <= weiTotal, "Impossible to add liquidity");
+
+                refundingEthAmount = weiTotal - amountETHDesired;
+            }
+            console.log("Currently holding %d BZN", bznAmount);
             
             //This is 1%
             uint256 amountTokenMin = amountTokenDesired - ((amountTokenDesired * 100) / 10000);
@@ -256,7 +253,12 @@ contract LiquidityLock is Ownable {
         //Transfer the reward amount to us
         _tokenStakingSchedule.rewardAmount = config.staking.totalRewardAmount;
         pool.transfer(address(this), config.staking.totalRewardAmount);
-        beginRewardPeriod(config.staking.duration);
+        _tokenStakingSchedule.duration = config.staking.duration;
+        _tokenStakingSchedule.startTime = block.timestamp;
+
+        _tokenStakingSchedule.endTime = _tokenStakingSchedule.startTime + _tokenStakingSchedule.duration;
+
+        _tokenStakingSchedule.isActive = true;
 
         executed = true;
 
@@ -314,8 +316,9 @@ contract LiquidityLock is Ownable {
     * on-behalf of the depositor
     * @param depositor The depositor address to setup vesting/staking for
     */
-    function setup(address depositor) external {
+    function setup(address payable depositor) external {
         require(executed, "The execute() function hasn't run yet");
+        require(!userData[depositor].isActive, "Setup already called for this address");
 
         uint256 userAmount = amounts[depositor];
 
@@ -343,19 +346,12 @@ contract LiquidityLock is Ownable {
             executedDay,
             bznAmount
         );
-    }
+        
+        if (refundingEthAmount > 0) {
+            uint256 ethToSend = (refundingEthAmount * userAmount) / totalBalanceAtExecute;
 
-    /**
-    * @dev Start the staking reward period. Only invoked inside execute()
-    * @param _duration The length of the staking period
-    */
-    function beginRewardPeriod(uint256 _duration) internal {
-        _tokenStakingSchedule.duration = _duration;
-        _tokenStakingSchedule.startTime = block.timestamp;
-
-        _tokenStakingSchedule.endTime = _tokenStakingSchedule.startTime + _tokenStakingSchedule.duration;
-
-        _tokenStakingSchedule.isActive = true;
+            depositor.transfer(ethToSend);
+        }
     }
 
     /**
@@ -390,7 +386,17 @@ contract LiquidityLock is Ownable {
     */
     function rewardAmountFor(address owner) public view isStakingActive returns (uint256) {
         if (totalStaking() == 0)
-            return 0;
+            return 0; //No rewards if there is no staking pool
+
+        if (!_lpTokenGrants[owner].isActive)
+            return 0; //No rewards if not active
+
+        uint32 onDay = _effectiveDay(today());
+        uint32 startDay = _lpTokenGrants[owner].startDay;
+        if (onDay < startDay + _tokenVestingSchedule.cliffDuration) 
+        {
+            return 0; //No rewards if inside cliff period
+        }
 
         //Use original amount of reward pool to calculate portion
         uint256 amount = totalRewardPool() + totalRewardsClaimed;
@@ -436,17 +442,18 @@ contract LiquidityLock is Ownable {
     */
     function claimFor(address owner) public virtual isStakingActive returns (uint256) {
         uint256 amount = rewardAmountFor(owner);
+
+        require(amount > 0, "No rewards to claim");
+
+        _lastClaimTime[owner] = block.timestamp;
+        amountClaimed[owner] = amountClaimed[owner] + amount;
+        totalRewardsClaimed += amount;
         
-        if (amount > 0) {
-            _lastClaimTime[owner] = block.timestamp;
-            amountClaimed[owner] = amountClaimed[owner] + amount;
-            totalRewardsClaimed += amount;
-            
-            _tokenStakingSchedule.rewardAmount -= amount;
-            _rewardToken.transfer(owner, amount);
-            
-            emit RewardPaid(owner, amount);
-        }
+        _tokenStakingSchedule.rewardAmount -= amount;
+        
+        IERC20(config.bznAddress).transfer(owner, amount);
+        
+        emit RewardPaid(owner, amount);
         
         return amount;
     }
@@ -499,13 +506,6 @@ contract LiquidityLock is Ownable {
     }
 
     /**
-    * @dev Get the address of the LP Token
-    */
-    function getLPTokenAddress() public view returns (address) {
-        return address(lpToken);
-    }
-
-    /**
      * @dev returns true if the account has sufficient funds available to cover the given amount,
      *   including consideration for vesting tokens.
      *
@@ -527,7 +527,7 @@ contract LiquidityLock is Ownable {
      * @param grantHolder = The account to check.
      * @param onDay = The day to check for, in days since the UNIX epoch.
      */
-    function getAvailableBZNAmount(address grantHolder, uint32 onDay) internal view returns (uint256 amountAvailable) {
+    function getAvailableBZNAmount(address grantHolder, uint32 onDay) public view returns (uint256 amountAvailable) {
         uint256 totalTokens = userData[grantHolder].bznExtraTotal;
         uint256 vested = totalTokens - _getNotVestedAmount(grantHolder, onDay, _bznTokenGrants[grantHolder]);
         return vested;
@@ -543,7 +543,7 @@ contract LiquidityLock is Ownable {
      * @param grantHolder = The account to check.
      * @param onDay = The day to check for, in days since the UNIX epoch.
      */
-    function getAvailableLPAmount(address grantHolder, uint32 onDay) internal view returns (uint256 amountAvailable) {
+    function getAvailableLPAmount(address grantHolder, uint32 onDay) public view returns (uint256 amountAvailable) {
         uint256 totalTokens = userData[grantHolder].lpTokenTotal;
         uint256 vested = totalTokens - _getNotVestedAmount(grantHolder, onDay, _lpTokenGrants[grantHolder]);
         return vested;
