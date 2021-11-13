@@ -14,12 +14,12 @@ module.exports = {
       isLinear: true,
       totalRewardAmount: "100000000000000000000",
     },
-    dueDate: 1636321527,
+    dueDate: 1636991649,
   },
   schedule: {
     isValid: true,
-    cliffDuration: 1,
-    duration: 3,
+    cliffDuration: 2,
+    duration: 4,
     interval: 1,
   },
 };

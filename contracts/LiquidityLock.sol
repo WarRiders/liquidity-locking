@@ -131,7 +131,7 @@ contract LiquidityLock is Ownable {
         require(msg.value > 0, "Must send some ether");
         require(msg.sender != config.recipient, "Recipient cant deposit");
         require(msg.sender != owner(), "Owner cant deposit");
-
+        require(block.timestamp <= config.dueDate, "Cannot deposit after due date");
         require(msg.value >= config.minimum, "Must send at least the minimum");
         require(msg.value <= config.maximum || config.maximum == 0, "Must send less than or equal to the maximum, or the maximum must be 0");
         uint256 currentBalance = totalAmountDeposited + msg.value;
