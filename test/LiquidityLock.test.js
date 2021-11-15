@@ -26,11 +26,21 @@ describe("Liquidity Lock", () => {
     this.user2 = user2;
     this.user3 = user3;
     this.user4 = user4;
-    const newBalance = "0x8AC7230489E80000";
+    const newBalance = "0x1158E460913D00000";
 
-    const currentPoolOwner = "0x4472a4b8f2194788dbfc717811392e0aa6b30bf5";
+    const TempAdvisorPool = await ethers.getContractFactory(
+      "AdvisorPool",
+      deployer
+    );
+    const tempAdvisorPool = TempAdvisorPool.attach(options.data.bznSource);
+
+    const currentPoolOwner = await tempAdvisorPool.owner();
     await network.provider.send("hardhat_setBalance", [
       currentPoolOwner,
+      newBalance,
+    ]);
+    await network.provider.send("hardhat_setBalance", [
+      deployer.address,
       newBalance,
     ]);
     await network.provider.request({
@@ -49,6 +59,8 @@ describe("Liquidity Lock", () => {
     await advisorPool.transferOwnership(this.multisig.address);
 
     options.data.recipient = this.multisig.address;
+    options.data.startDate = Math.floor(Date.now() / 1000) - 86400;
+    options.data.dueDate = options.data.startDate + 604800;
 
     this.advisorPool = advisorPool;
 

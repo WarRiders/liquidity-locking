@@ -15,6 +15,7 @@ module.exports = {
       totalRewardAmount: "100000000000000000000",
     },
     dueDate: 1634945648,
+    startDate: 1634945648 - 604800,
   },
   schedule: {
     isValid: true,

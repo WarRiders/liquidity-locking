@@ -34,6 +34,7 @@ struct LiquidityLockData {
     address payable recipient;
     stakingConfig staking;
     uint256 dueDate;
+    uint256 startDate;
 }
 
 struct LiquidityLockConfig {

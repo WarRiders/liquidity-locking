@@ -132,6 +132,7 @@ contract LiquidityLock is Ownable {
         require(msg.sender != config.recipient, "Recipient cant deposit");
         require(msg.sender != owner(), "Owner cant deposit");
         require(block.timestamp <= config.dueDate, "Cannot deposit after due date");
+        require(block.timestamp >= config.startDate, "Cannot deposit before start date");
         require(msg.value >= config.minimum, "Must send at least the minimum");
         require(msg.value <= config.maximum || config.maximum == 0, "Must send less than or equal to the maximum, or the maximum must be 0");
         uint256 currentBalance = totalAmountDeposited + msg.value;
@@ -300,7 +301,7 @@ contract LiquidityLock is Ownable {
     * @param user The user requesting the refund withdrawal
     */
     function refundWithdrawal(address payable user) external {
-        require(disabled, "Contract has not been disabled");
+        require(isDisabled(), "Contract has not been disabled");
         require(amounts[user] > 0, "Nothing to withdraw");
 
         uint256 userAmount = amounts[user];
