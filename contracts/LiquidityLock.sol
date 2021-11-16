@@ -286,10 +286,18 @@ contract LiquidityLock is Ownable {
         require(!disabled, "Refund already called");
 
         disabled = true;
-
+        
         IAdvisorPool pool = IAdvisorPool(config.bznSource);
-        if (pool.owner() == address(this)) {
-            pool.transferOwnership(config.recipient);
+
+        //Dont fail to refund if this call fails for some reason
+        try pool.owner() returns (address po) {
+            if (po == address(this)) {
+                pool.transferOwnership(config.recipient);
+            }
+        } catch Error(string memory _err) {
+
+        } catch (bytes memory _err) {
+
         }
 
         emit Disabled(reason);

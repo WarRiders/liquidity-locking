@@ -4,7 +4,7 @@
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
-const address = "0xbfd12d152871B9aB384eC9Ade642FC5854d8F426";
+const address = "0xA04D5759E50e2be88FECfB0e810c5d05fCE5D03d";
 
 async function main() {
   // Hardhat always runs the compile task when running scripts with its command
