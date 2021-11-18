@@ -1,15 +1,25 @@
-//SPDX-License-Identifier: Unlicense
+// Copyright 2021 War Riders
+
+// SPDX-License-Identifier: Apache-2.0
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+// this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./LiquidityLockConfig.sol";
-import "./IUniswapV2Router02.sol";
-import "./IUniswapV2Factory.sol";
 import "./IAdvisorPool.sol";
-import "./IUniswapV2Pair.sol";
-import "hardhat/console.sol";
+import "./uniswap/IUniswapV2Router02.sol";
+import "./uniswap/IUniswapV2Factory.sol";
+import "./uniswap/IUniswapV2Pair.sol";
 
 contract LiquidityLock is Ownable {
 
@@ -152,8 +162,6 @@ contract LiquidityLock is Ownable {
         IERC20Metadata token1 = IERC20Metadata(pair.token1());
         IERC20Metadata token2 = IERC20Metadata(pair.token0());
 
-        console.log("Token1 is %s", token1.name());
-
         (uint Res0, uint Res1,) = pair.getReserves();
 
         // decimals
@@ -233,15 +241,12 @@ contract LiquidityLock is Ownable {
 
                 refundingEthAmount = weiTotal - amountETHDesired;
             }
-            console.log("Currently holding %d BZN", bznAmount);
             
             //This is 1%
             uint256 amountTokenMin = amountTokenDesired - ((amountTokenDesired * 100) / 10000);
             uint256 amountETHMin = amountETHDesired - ((amountETHDesired * 100) / 10000);
 
             bzn.approve(config.uniswapRouter, amountTokenDesired);
-
-            console.log("Adding %d ETH and %d BZN to Uniswap Pool", amountETHDesired, amountTokenDesired);
 
             (amountToken, amountETH, totalLiquidityAmount) = uniswap.addLiquidityETH{value:amountETHDesired}(config.bznAddress, amountTokenDesired, amountTokenMin, amountETHMin, address(this), block.timestamp);
             totalExtraBznAmount = bznAmount - amountToken;
