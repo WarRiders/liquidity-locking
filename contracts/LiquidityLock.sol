@@ -113,13 +113,13 @@ contract LiquidityLock is Ownable {
     }
 
     modifier isActive {
-        require(!disabled, "Contract is disabled");
+        require(!isDisabled(), "Contract is disabled");
         require(!executed, "No longer active");
         _;
     }
 
     modifier hasExecuted {
-        require(!disabled, "Contract is disabled");
+        require(!isDisabled(), "Contract is disabled");
         require(executed, "Waiting for execute");
         _;
     }
@@ -277,8 +277,11 @@ contract LiquidityLock is Ownable {
     function isDisabled() public view returns (bool) {
         uint256 currentBalance = totalAmountDeposited;
         uint256 bznAmount = currentBalance * config.bznRatio;
+        uint256 grace = config.dueDate + (2 * SECONDS_PER_DAY); //2 day grace period after due date to execute
 
-        return disabled || (block.timestamp > config.dueDate && bznAmount < config.bznSoftLimit);
+        return disabled ||  //Refund has been executed
+         (block.timestamp > config.dueDate && bznAmount < config.bznSoftLimit) ||  //It is past the due date and the soft limit hasn't been reached
+          (block.timestamp > grace && !executed);  //It it after the grace due date (2 days after due date) and the contract hasn't been executed yet
     }
 
     /**
